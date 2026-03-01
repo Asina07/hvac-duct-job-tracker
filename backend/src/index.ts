@@ -7,6 +7,7 @@ import statusRouter from './routes/statusRoutes';
 import authRoutes from './routes/authRoutes';
 import projectRoutes from './routes/projectRoutes';
 import jobRoutes from './routes/jobRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
 
 
 const app = express();
@@ -32,6 +33,9 @@ app.use('/api/projects', projectRoutes);
 
 //job routes
 app.use('/api/jobs', jobRoutes);
+
+//dashboard routes
+app.use('/api/dashboard', dashboardRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
