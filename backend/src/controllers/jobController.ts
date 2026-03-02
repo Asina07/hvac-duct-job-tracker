@@ -127,7 +127,7 @@ export const getJobs = async (req: Request, res: Response) => {
         has_prev_page: page > 1,
       },
       sorting: {
-        sort_by,
+        sort_by: sort_by,
       },
     });
   } catch (err) {
