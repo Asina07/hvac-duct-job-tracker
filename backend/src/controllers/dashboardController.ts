@@ -4,22 +4,23 @@
  * Returns aggregated data including job counts, SQM totals,
  * material breakdown, status breakdown, delivery summary
  * and tag list waiting for approval
- * 
+ *
  * All routes protected by JWT authentication middleware
  */
-
 
 import { Request, Response } from "express";
 import dbPool from "./../config/db";
 
 export const getDashboardData = async (req: Request, res: Response) => {
+  const user_id = req.user?.id; // Ensure the user can only access their own dashboard data
   try {
     // Get overall summary counts and totals from all jobs
     // COUNT(*) - counts every job row regardless of status
     // SUM(total_sqm) - adds up all square meters across all jobs
     // SUM(total_delivered_sqm) - adds up all delivered square meters
     const overAllResult = await dbPool.query(
-      "SELECT COUNT(*) AS total_jobs, SUM(total_sqm) AS total_sqm, SUM(total_delivered_sqm) AS total_delivered_sqm FROM jobs",
+      "SELECT COUNT(*) AS total_jobs, SUM(total_sqm) AS total_sqm, SUM(total_delivered_sqm) AS total_delivered_sqm FROM jobs WHERE user_id = $1",
+      [user_id],
     );
 
     // Get job count and total SQM grouped by each material type
@@ -27,7 +28,8 @@ export const getDashboardData = async (req: Request, res: Response) => {
     // GROUP BY materials.name - separates totals per material
     // Example result: GI DUCT FIRERATED = 45 jobs, 28530 SQM
     const byMaterialResult = await dbPool.query(
-      "SELECT materials.name AS material, COUNT(*) AS total_jobs, SUM(jobs.total_sqm) AS total_sqm FROM jobs LEFT JOIN materials ON jobs.material_id = materials.id GROUP BY materials.name",
+      "SELECT materials.name AS material, COUNT(*) AS total_jobs, SUM(jobs.total_sqm) AS total_sqm FROM jobs LEFT JOIN materials ON jobs.material_id = materials.id WHERE jobs.user_id = $1 GROUP BY materials.name",
+      [user_id],
     );
 
     // Get job count and total SQM grouped by each status
@@ -35,7 +37,8 @@ export const getDashboardData = async (req: Request, res: Response) => {
     // GROUP BY both name and color because we're selecting color too
     // Example result: IN PRODUCTION(orange) = 10 jobs, 3267 SQM
     const byStatusResult = await dbPool.query(
-      "SELECT statuses.name AS status, statuses.color AS color, COUNT(*) AS total_jobs, SUM(jobs.total_sqm) AS total_sqm FROM jobs LEFT JOIN statuses ON jobs.status_id = statuses.id GROUP BY statuses.name, statuses.color;",
+      "SELECT statuses.name AS status, statuses.color AS color, COUNT(*) AS total_jobs, SUM(jobs.total_sqm) AS total_sqm FROM jobs LEFT JOIN statuses ON jobs.status_id = statuses.id WHERE jobs.user_id = $1 GROUP BY statuses.name, statuses.color;",
+      [user_id],
     );
 
     // Get delivery progress per material type

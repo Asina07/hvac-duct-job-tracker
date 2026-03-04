@@ -3,6 +3,11 @@ import dbPool from "./../config/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+
+// INSERT INTO users (email, password, name)
+// -- VALUES ('demo@hvactracker.com', 'abcd@1234', 'Demo User')
+
+
 export const login = async (req: Request, res: Response) => {
   const { email, password,name } = req.body;
   if (!email) {
@@ -41,3 +46,4 @@ export const login = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to login" });
   }
 };
+
