@@ -44,6 +44,12 @@ export const getJobs = async (req: Request, res: Response) => {
     const values: (string | number)[] = [];
     let paramCount = 1;
 
+    // Always filter by user_id to ensure users only see their own jobs
+    conditions.push(`jobs.user_id = $${paramCount}`);
+    values.push(req.user?.id as number);
+    paramCount++;
+
+
     if (search) {
       conditions.push(
         `(jobs.job_number ILIKE $${paramCount} OR projects.name ILIKE $${paramCount})`,
@@ -81,7 +87,6 @@ export const getJobs = async (req: Request, res: Response) => {
       values.push(to_date);
       paramCount++;
     }
-
 
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -127,7 +132,7 @@ export const getJobs = async (req: Request, res: Response) => {
         has_prev_page: page > 1,
       },
       sorting: {
-        sort_by,
+        sort_by: sort_by,
       },
     });
   } catch (err) {
@@ -139,10 +144,11 @@ export const getJobs = async (req: Request, res: Response) => {
 
 export const getJobById = async (req: Request, res: Response) => {
   const jobId = req.params.id;
+  const user_id = req.user?.id; // Ensure the user can only access their own jobs
   try {
     const result = await dbPool.query(
-      "SELECT jobs.*, materials.name AS material_name, projects.name AS project_name, statuses.name AS status_name, statuses.color AS status_color FROM jobs LEFT JOIN materials ON jobs.material_id = materials.id LEFT JOIN projects ON jobs.project_id = projects.id LEFT JOIN statuses ON jobs.status_id = statuses.id WHERE jobs.id = $1",
-      [jobId],
+      "SELECT jobs.*, materials.name AS material_name, projects.name AS project_name, statuses.name AS status_name, statuses.color AS status_color FROM jobs LEFT JOIN materials ON jobs.material_id = materials.id LEFT JOIN projects ON jobs.project_id = projects.id LEFT JOIN statuses ON jobs.status_id = statuses.id WHERE jobs.id = $1 AND jobs.user_id = $2",
+      [jobId, user_id ],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Job not found" });
@@ -156,6 +162,7 @@ export const getJobById = async (req: Request, res: Response) => {
 };
 
 export const createJob = async (req: Request, res: Response) => {
+  const user_id = req.user?.id; // Assuming you have user authentication and req.user is populated
   const {
     date_received,
     material_id,
@@ -175,7 +182,7 @@ export const createJob = async (req: Request, res: Response) => {
   }
   try {
     const result = await dbPool.query(
-      "INSERT INTO jobs (date_received, material_id, project_id, status_id, job_number,item,level,total_sqm,unit,date_to_production,notes,total_delivered_sqm) VALUES ($1, $2, $3, $4, $5,$6,$7,$8,$9,$10,$11,$12) RETURNING *",
+      "INSERT INTO jobs (date_received, material_id, project_id, status_id, job_number,item,level,total_sqm,unit,date_to_production,notes,total_delivered_sqm,user_id) VALUES ($1, $2, $3, $4, $5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *",
       [
         date_received,
         material_id,
@@ -189,6 +196,7 @@ export const createJob = async (req: Request, res: Response) => {
         date_to_production,
         notes,
         total_delivered_sqm,
+        user_id,
       ],
     );
     res.status(201).json(result.rows[0]);
@@ -201,6 +209,7 @@ export const createJob = async (req: Request, res: Response) => {
 
 export const updateJob = async (req: Request, res: Response) => {
   const jobId = req.params.id;
+   const user_id = req.user?.id; // Assuming you have user authentication and req.user is populated
   const {
     date_received,
     job_number,
@@ -271,8 +280,8 @@ export const updateJobStatus = async (req: Request, res: Response) => {
   }
   try {
     const result = await dbPool.query(
-      "UPDATE jobs SET status_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *",
-      [status_id, jobId],
+      "UPDATE jobs SET status_id = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
+      [status_id, jobId, req.user?.id],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Job not found" });
@@ -287,10 +296,11 @@ export const updateJobStatus = async (req: Request, res: Response) => {
 
 export const deleteJob = async (req: Request, res: Response) => {
   const jobId = req.params.id;
+    const user_id = req.user?.id; // Ensure the user can only delete their own jobs
   try {
     const result = await dbPool.query(
-      "DELETE FROM jobs WHERE id = $1 RETURNING *",
-      [jobId],
+      "DELETE FROM jobs WHERE id = $1 AND user_id = $2 RETURNING *",
+      [jobId, user_id],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Job not found" });

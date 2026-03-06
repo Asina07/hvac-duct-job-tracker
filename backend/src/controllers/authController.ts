@@ -3,8 +3,11 @@ import dbPool from "./../config/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+// INSERT INTO users (email, password, name)
+// -- VALUES ('demo@hvactracker.com', 'abcd@1234', 'Demo User')
+
 export const login = async (req: Request, res: Response) => {
-  const { email, password,name } = req.body;
+  const { email, password, name } = req.body;
   if (!email) {
     return res.status(400).json({ error: "Invalid credentials" });
   }
@@ -13,10 +16,10 @@ export const login = async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await dbPool.query("SELECT * FROM users WHERE email = $1 AND name = $2", [
-      email, 
-      name
-    ]);
+    const result = await dbPool.query(
+      "SELECT * FROM users WHERE email = $1 AND name = $2",
+      [email, name],
+    );
     const user = result.rows[0];
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
@@ -34,7 +37,11 @@ export const login = async (req: Request, res: Response) => {
       expiresIn: "7d",
     });
 
-    res.json({ message: "Login successful", token });
+    res.json({
+      message: "Login successful",
+      token,
+      user: { id: user.id, email: user.email, name: user.name },
+    });
   } catch (err) {
     const error = err as Error;
     console.error("Error during login:", error.message);
