@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "../lib/api";
+import { useAuthStore } from "../store/authStore";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const setAuth = useAuthStore((state) => state.setAuth);
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -22,10 +25,13 @@ export default function LoginPage() {
     // 2. call login(email, password)
     try {
       const response = await login(email, password, name);
-      // 3. save token to localStorage
-      localStorage.setItem("token", response.token);
+      // // 3. save token to localStorage
+      // localStorage.setItem("token", response.token);
+
+      // 4. save user info to Zustand store
+      setAuth(response.token, response.user);
       // 4. redirect to dashboard
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       // 5. if error, set error message
       setError("Invalid email or password");

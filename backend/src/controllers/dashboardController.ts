@@ -13,13 +13,21 @@ import dbPool from "./../config/db";
 
 export const getDashboardData = async (req: Request, res: Response) => {
   const user_id = req.user?.id; // Ensure the user can only access their own dashboard data
+  // console.log("Fetching dashboard data for user_id:", user_id);
   try {
     // Get overall summary counts and totals from all jobs
     // COUNT(*) - counts every job row regardless of status
     // SUM(total_sqm) - adds up all square meters across all jobs
     // SUM(total_delivered_sqm) - adds up all delivered square meters
     const overAllResult = await dbPool.query(
-      "SELECT COUNT(*) AS total_jobs, SUM(total_sqm) AS total_sqm, SUM(total_delivered_sqm) AS total_delivered_sqm FROM jobs WHERE user_id = $1",
+      `
+  SELECT 
+    COUNT(*) AS total_jobs,
+    SUM(total_sqm) AS total_sqm,
+    SUM(total_delivered_sqm) AS total_delivered_sqm
+  FROM jobs
+  WHERE user_id = $1
+`,
       [user_id],
     );
 
@@ -79,12 +87,29 @@ export const getDashboardData = async (req: Request, res: Response) => {
   ORDER BY jobs.date_received ASC
 `);
 
+//to get detailes of each category by material
+const materialStatusResult = await dbPool.query(`
+  SELECT 
+    materials.name AS material,
+    statuses.name AS status,
+    statuses.color AS color,
+    COUNT(*) AS total_jobs,
+    SUM(jobs.total_sqm) AS total_sqm
+  FROM jobs
+  LEFT JOIN materials ON jobs.material_id = materials.id
+  LEFT JOIN statuses ON jobs.status_id = statuses.id
+  WHERE jobs.user_id = $1
+  GROUP BY materials.name, statuses.name, statuses.color
+  ORDER BY materials.name, statuses.name
+`, [user_id]);
+
     res.json({
       overall: overAllResult.rows[0],
       by_material: byMaterialResult.rows,
       by_status: byStatusResult.rows,
       delivery_summary: deliverySummaryResult.rows,
       tag_list_waiting: tagListWaitingResult.rows,
+       material_status_breakdown: materialStatusResult.rows,
     });
   } catch (error) {
     const err = error as Error;

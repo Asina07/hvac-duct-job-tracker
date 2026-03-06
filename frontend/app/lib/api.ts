@@ -1,8 +1,11 @@
+import { useAuthStore } from "../store/authStore";
+
 //all api call heree
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const fetchApi = async (endpoint: string, options: RequestInit = {}) => {
-    const token = localStorage.getItem('token');
+    const token = useAuthStore.getState().token; // Get token from Zustand store
+    // const token = localStorage.getItem('token');
 
     const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
