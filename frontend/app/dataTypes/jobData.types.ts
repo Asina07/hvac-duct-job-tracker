@@ -7,6 +7,7 @@ export interface jobTypes {
   project_id: number;
   level: string;
   total_sqm: string;
+  original_sqm: string;
   unit: string;
   status_id: number;
   date_to_production: string;

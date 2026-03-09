@@ -9,6 +9,7 @@ import {
 } from "@/app/lib/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BackButton from "@/app/components/BackButton";
 
 const NewJobPage = () => {
   const [materials, setMaterials] = useState([]);
@@ -82,10 +83,13 @@ const NewJobPage = () => {
   return (
     <LayoutComp mainHeader={"Create Jobs"}>
       <section className="bg-white dark:bg-gray-900">
-        <div className="py-8 px-4 mx-auto  lg:py-16">
-          {/* <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">
-            Add a new product
-          </h2> */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">New Jobs</h1>
+          <div className="text-sm text-blue-600 hover:text-blue-800">
+            <BackButton />
+          </div>
+        </div>
+        <div className="py-4 px-4 mx-auto bg-white rounded-lg shadow-sm">
           <form onSubmit={handleSubmit}>
             {/* <pre className="text-xs bg-gray-100 p-2 mt-2">
               {JSON.stringify(formData, null, 2)}
@@ -288,12 +292,20 @@ const NewJobPage = () => {
                 ></textarea>
               </div>
             </div>
-            <button
-              type="submit"
-              className="flex items-center px-5 py-2.5 mt-4 sm:mt-6 text-sm font-medium text-center text-white bg-blue-500 rounded-lg focus:ring-4 focus:ring-primary-200 dark:focus:ring-primary-900 hover:bg-primary-800"
-            >
-              Add product
-            </button>
+            <div className="flex justify-between items-center gap-3">
+              <button
+                type="submit"
+                className="flex items-center px-5 py-2.5 mt-4 sm:mt-6 text-sm font-medium text-center text-white bg-blue-500 rounded-lg focus:ring-4 focus:ring-primary-200 dark:focus:ring-primary-900 hover:bg-primary-800"
+              >
+                Add product
+              </button>
+              <button
+                onClick={() => router.push("/jobs")}
+                className="flex items-center px-5 py-2.5 mt-4 sm:mt-6 text-sm font-medium text-center text-white bg-blue-500 rounded-lg focus:ring-4 focus:ring-primary-200 dark:focus:ring-primary-900 hover:bg-primary-800"
+              >
+                See All Jobs
+              </button>
+            </div>
           </form>
         </div>
       </section>

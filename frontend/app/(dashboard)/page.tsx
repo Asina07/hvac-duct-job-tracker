@@ -7,12 +7,15 @@ import StatusBadge from "../components/StatusBadge";
 import LoadingSpinner from "../components/LoadingSpinner";
 import LayoutComp from "../components/LayoutComp";
 import { DashboardData } from "../dataTypes/dashboardData.types";
+import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const router = useRouter();
 
+  
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -62,11 +65,14 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* use SummaryCard component here */}
           {/* data.overall.total_jobs */}
-          <SummaryCard
-            title="Total Jobs"
-            value={data?.overall?.total_jobs}
-            color="blue"
-          />
+          <div className="cursor-pointer" onClick={() => router.push("/jobs")}>
+            {" "}
+            <SummaryCard
+              title="Total Jobs"
+              value={data?.overall?.total_jobs}
+              color="blue"
+            />
+          </div>
           {/* data.overall.total_sqm */}
           <SummaryCard
             title="Total SQM"

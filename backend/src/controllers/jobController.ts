@@ -49,7 +49,6 @@ export const getJobs = async (req: Request, res: Response) => {
     values.push(req.user?.id as number);
     paramCount++;
 
-
     if (search) {
       conditions.push(
         `(jobs.job_number ILIKE $${paramCount} OR projects.name ILIKE $${paramCount})`,
@@ -148,7 +147,7 @@ export const getJobById = async (req: Request, res: Response) => {
   try {
     const result = await dbPool.query(
       "SELECT jobs.*, materials.name AS material_name, projects.name AS project_name, statuses.name AS status_name, statuses.color AS status_color FROM jobs LEFT JOIN materials ON jobs.material_id = materials.id LEFT JOIN projects ON jobs.project_id = projects.id LEFT JOIN statuses ON jobs.status_id = statuses.id WHERE jobs.id = $1 AND jobs.user_id = $2",
-      [jobId, user_id ],
+      [jobId, user_id],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Job not found" });
@@ -172,6 +171,7 @@ export const createJob = async (req: Request, res: Response) => {
     item,
     level,
     total_sqm,
+    original_sqm,
     unit,
     date_to_production,
     total_delivered_sqm,
@@ -182,7 +182,7 @@ export const createJob = async (req: Request, res: Response) => {
   }
   try {
     const result = await dbPool.query(
-      "INSERT INTO jobs (date_received, material_id, project_id, status_id, job_number,item,level,total_sqm,unit,date_to_production,notes,total_delivered_sqm,user_id) VALUES ($1, $2, $3, $4, $5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *",
+      "INSERT INTO jobs (date_received, material_id, project_id, status_id, job_number,item,level,total_sqm,original_sqm,unit,date_to_production,notes,total_delivered_sqm,user_id) VALUES ($1, $2, $3, $4, $5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *",
       [
         date_received,
         material_id,
@@ -192,6 +192,7 @@ export const createJob = async (req: Request, res: Response) => {
         item,
         level,
         total_sqm,
+        original_sqm,
         unit,
         date_to_production,
         notes,
@@ -209,7 +210,7 @@ export const createJob = async (req: Request, res: Response) => {
 
 export const updateJob = async (req: Request, res: Response) => {
   const jobId = req.params.id;
-   const user_id = req.user?.id; // Assuming you have user authentication and req.user is populated
+  const user_id = req.user?.id; // Assuming you have user authentication and req.user is populated
   const {
     date_received,
     job_number,
@@ -257,6 +258,7 @@ export const updateJob = async (req: Request, res: Response) => {
         total_delivered_sqm,
         notes,
         jobId,
+        // user_id
       ],
     );
     if (result.rows.length === 0) {
@@ -272,17 +274,82 @@ export const updateJob = async (req: Request, res: Response) => {
 
 export const updateJobStatus = async (req: Request, res: Response) => {
   const jobId = req.params.id;
-  const { status_id } = req.body;
+  const { status_id, delivered_sqm } = req.body;
+  const user_id = req.user?.id;
 
-  if (!status_id) {
-    res.status(400).json({ error: "Status ID is required" });
-    return;
-  }
   try {
-    const result = await dbPool.query(
-      "UPDATE jobs SET status_id = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
-      [status_id, jobId, req.user?.id],
-    );
+    const [statusResult] = await Promise.all([
+      dbPool.query("SELECT name FROM statuses WHERE id = $1", [status_id]),
+    ]);
+
+    const statusName = statusResult.rows[0]?.name;
+
+    let query = "";
+    let values: any[] = [];
+
+    if (statusName === "DELIVERED") {
+      // Auto deliver everything — total_sqm becomes 0
+      query = `
+        UPDATE jobs 
+        SET
+          status_id = $1,
+          total_delivered_sqm = original_sqm,
+          total_sqm = 0,
+          updated_at = NOW()
+        WHERE id = $2 AND user_id = $3
+        RETURNING *
+      `;
+      values = [status_id, jobId, user_id];
+    } else if (statusName === "PARTIALLY DELIVERED") {
+      // delivered_sqm must be provided
+      if (!delivered_sqm) {
+        res.status(400).json({
+          error: "delivered_sqm is required for PARTIALLY DELIVERED status",
+        });
+        return;
+      }
+
+      // Check cant deliver more than remaining
+      const jobCheck = await dbPool.query(
+        "SELECT total_sqm FROM jobs WHERE id = $1",
+        [jobId],
+      );
+      const remainingSqm = parseFloat(jobCheck.rows[0]?.total_sqm);
+
+      if (parseFloat(delivered_sqm) > remainingSqm) {
+        res.status(400).json({
+          error: `Cannot deliver more than remaining SQM (${remainingSqm})`,
+        });
+        return;
+      }
+
+      // ADD to existing delivered, SUBTRACT from remaining
+      query = `
+        UPDATE jobs 
+        SET
+          status_id = $1,
+          total_delivered_sqm = COALESCE(total_delivered_sqm, 0) + $2,
+          total_sqm = total_sqm - $2,
+          updated_at = NOW()
+        WHERE id = $3 AND user_id = $4
+        RETURNING *
+      `;
+      values = [status_id, parseFloat(delivered_sqm), jobId, user_id];
+    } else {
+      // Any other status — just update status only
+      query = `
+        UPDATE jobs 
+        SET
+          status_id = $1,
+          updated_at = NOW()
+        WHERE id = $2 AND user_id = $3
+        RETURNING *
+      `;
+      values = [status_id, jobId, user_id];
+    }
+
+    const result = await dbPool.query(query, values);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Job not found" });
     }
@@ -296,7 +363,7 @@ export const updateJobStatus = async (req: Request, res: Response) => {
 
 export const deleteJob = async (req: Request, res: Response) => {
   const jobId = req.params.id;
-    const user_id = req.user?.id; // Ensure the user can only delete their own jobs
+  const user_id = req.user?.id; // Ensure the user can only delete their own jobs
   try {
     const result = await dbPool.query(
       "DELETE FROM jobs WHERE id = $1 AND user_id = $2 RETURNING *",
