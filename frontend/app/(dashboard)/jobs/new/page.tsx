@@ -5,18 +5,50 @@ import {
   createJob,
   getMaterials,
   getProjects,
+  createMaterial,
+  createProject,
+  createStatus,
   getStatuses,
 } from "@/app/lib/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "@/app/components/BackButton";
+import { Plus } from "lucide-react";
+import Modal from "@/app/components/Modal";
 
+type Material = {
+  id: number;
+  name: string;
+};
+
+type Project = {
+  id: number;
+  name: string;
+};
+
+type Status = {
+  id: number;
+  name: string;
+};
 const NewJobPage = () => {
-  const [materials, setMaterials] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [statuses, setStatuses] = useState([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [statuses, setStatuses] = useState<Status[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Modal states
+  const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+
+  // Input states
+  const [newMaterialName, setNewMaterialName] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newStatusName, setNewStatusName] = useState("");
+
+  // Loading state - one for all
+  const [modalLoading, setModalLoading] = useState(false);
   const [formData, setFormData] = useState({
     date_received: "",
     job_number: "",
@@ -25,6 +57,7 @@ const NewJobPage = () => {
     project_id: "",
     level: "",
     total_sqm: "",
+    original_sqm: "",
     unit: "SQM",
     status_id: "",
     date_to_production: "",
@@ -45,13 +78,22 @@ const NewJobPage = () => {
     loadOptions();
   }, []);
 
+
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >,
   ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    // When total_sqm changes, also set original_sqm
+    if (name === "total_sqm") {
+      setFormData({ ...formData, total_sqm: value, original_sqm: value });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
+  
 
   const router = useRouter();
 
@@ -68,6 +110,7 @@ const NewJobPage = () => {
         project_id: "",
         level: "",
         total_sqm: "",
+        original_sqm: "",
         unit: "SQM",
         status_id: "",
         date_to_production: "",
@@ -78,6 +121,50 @@ const NewJobPage = () => {
       setError("Failed to create job");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddOption = async (type: "material" | "project" | "status") => {
+    const nameMap = {
+      material: newMaterialName,
+      project: newProjectName,
+      status: newStatusName,
+    };
+
+    const name = nameMap[type];
+
+    if (!name) {
+      alert(`${type} name is required`);
+      return;
+    }
+
+    setModalLoading(true);
+    try {
+      let newItem;
+
+      if (type === "material") {
+        newItem = await createMaterial({ name });
+        setMaterials([...materials, newItem]);
+        setFormData({ ...formData, material_id: newItem.id });
+        setIsMaterialModalOpen(false);
+        setNewMaterialName("");
+      } else if (type === "project") {
+        newItem = await createProject({ name });
+        setProjects([...projects, newItem]);
+        setFormData({ ...formData, project_id: newItem.id });
+        setIsProjectModalOpen(false);
+        setNewProjectName("");
+      } else if (type === "status") {
+        newItem = await createStatus({ name });
+        setStatuses([...statuses, newItem]);
+        setFormData({ ...formData, status_id: newItem.id });
+        setIsStatusModalOpen(false);
+        setNewStatusName("");
+      }
+    } catch (err) {
+      alert(`Failed to add ${type}`);
+    } finally {
+      setModalLoading(false);
     }
   };
   return (
@@ -166,6 +253,12 @@ const NewJobPage = () => {
                       </option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => setIsMaterialModalOpen(true)}
+                    className="flex items-center px-3 py-2 mt-2 text-sm text-white bg-gray-400 rounded-lg hover:bg-gray-500"
+                  >
+                    <Plus size={16} className="mr-1" /> Add Material
+                  </button>
                 </div>
                 <div className="w-full">
                   <label
@@ -187,6 +280,12 @@ const NewJobPage = () => {
                       </option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => setIsProjectModalOpen(true)}
+                    className="flex items-center px-3 py-2 mt-2 text-sm text-white bg-gray-400 rounded-lg hover:bg-gray-500"
+                  >
+                    <Plus size={16} className="mr-1" /> Add Project
+                  </button>
                 </div>
                 <div className="w-full">
                   <label
@@ -208,6 +307,12 @@ const NewJobPage = () => {
                       </option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => setIsStatusModalOpen(true)}
+                    className="flex items-center px-3 py-2 mt-2 text-sm text-white bg-gray-400 rounded-lg hover:bg-gray-500"
+                  >
+                    <Plus size={16} className="mr-1" /> Add Status
+                  </button>
                 </div>
               </div>
 
@@ -309,6 +414,121 @@ const NewJobPage = () => {
           </form>
         </div>
       </section>
+
+      {/* modal section */}
+      {/* Material Modal */}
+      <Modal
+        isOpen={isMaterialModalOpen}
+        onClose={() => {
+          setIsMaterialModalOpen(false);
+          setNewMaterialName("");
+        }}
+        title="Add New Material"
+      >
+        <div className="space-y-4">
+          <input
+            type="text"
+            value={newMaterialName}
+            onChange={(e) => setNewMaterialName(e.target.value)}
+            placeholder="Enter material name"
+            className="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setIsMaterialModalOpen(false);
+                setNewMaterialName("");
+              }}
+              className="px-4 py-2 text-sm bg-gray-200 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleAddOption("material")}
+              disabled={modalLoading}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {modalLoading ? "Adding..." : "Add"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Project Modal */}
+      <Modal
+        isOpen={isProjectModalOpen}
+        onClose={() => {
+          setIsProjectModalOpen(false);
+          setNewProjectName("");
+        }}
+        title="Add New Project"
+      >
+        <div className="space-y-4">
+          <input
+            type="text"
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+            placeholder="Enter project name"
+            className="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setIsProjectModalOpen(false);
+                setNewProjectName("");
+              }}
+              className="px-4 py-2 text-sm bg-gray-200 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleAddOption("project")}
+              disabled={modalLoading}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {modalLoading ? "Adding..." : "Add"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Status Modal */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => {
+          setIsStatusModalOpen(false);
+          setNewStatusName("");
+        }}
+        title="Add New Status"
+      >
+        <div className="space-y-4">
+          <input
+            type="text"
+            value={newStatusName}
+            onChange={(e) => setNewStatusName(e.target.value)}
+            placeholder="Enter status name"
+            className="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setIsStatusModalOpen(false);
+                setNewStatusName("");
+              }}
+              className="px-4 py-2 text-sm bg-gray-200 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleAddOption("status")}
+              disabled={modalLoading}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {modalLoading ? "Adding..." : "Add"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </LayoutComp>
   );
 };

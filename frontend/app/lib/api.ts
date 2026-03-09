@@ -76,8 +76,21 @@ export const createMaterial = (data: object) =>
 // Statuses
 export const getStatuses = () => fetchApi("/api/statuses");
 
+export const createStatus = (data: object) =>
+  fetchApi("/api/statuses", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
 // Projects
 export const getProjects = () => fetchApi("/api/projects");
+export const createProject = (data: object) =>
+  fetchApi("/api/projects", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 
 // Dashboard
 export const getDashboard = () => fetchApi("/api/dashboard");
+// ,
+//   ,

@@ -146,7 +146,7 @@ const JobPage = () => {
     loadFilters();
   }, []);
 
-  if (loading) return <LoadingSpinner />;
+  // if (loading) return <LoadingSpinner />;
   if (error) return <div className="text-red-500">{error}</div>;
   if (!data) return null;
 
@@ -253,204 +253,214 @@ const JobPage = () => {
         </div>
         {/* <JobTable data={data} /> */}
         <div className="w-full overflow-x-auto ">
-          <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-gray-100 sticky top-0 z-10">
-              <tr className="border-b">
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Action
-                </th>
-                <th className="text-right py-2 px-3 whitespace-nowrap">
-                  Job_No
-                </th>
-                <th className="text-left py-2 px-3 whitespace-nowrap">
-                  Material
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Item
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Project
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Level
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Unit
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Status
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Total_SQM
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Current_SQM
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Total_Delivered_SQM
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Date_Received
-                </th>
-                <th className="text-center py-2 px-3 whitespace-nowrap">
-                  Date_to_Production
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.jobs?.length > 0 ? (
-                data.jobs.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-b hover:bg-blue-50 transition"
-                  >
-                    <td className="py-2 px-3">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/jobs/${item.id}/edit`}
-                          className="text-orange-600 hover:text-orange-800 text-xs font-medium"
-                        >
-                          Edit
-                        </Link>
-
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="text-red-600 hover:text-red-800 text-xs font-medium"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      {item.job_number}
-                    </td>
-
-                    <td className="py-4 px-3 whitespace-nowrap">
-                      {item.material_name}
-                    </td>
-
-                    <td className="text-center py-2 px-3 whitespace-nowrap">
-                      {item.item}
-                    </td>
-
-                    <td className="text-center py-2 px-3 whitespace-nowrap">
-                      {item.project_name}
-                    </td>
-
-                    <td className="text-center py-2 px-3 whitespace-nowrap">
-                      {item.level}
-                    </td>
-
-                    <td className="text-center py-2 px-3 whitespace-nowrap">
-                      {item.unit}
-                    </td>
-
-                    {/* STATUS COLUMN */}
-                    <td className="text-center py-2 px-3 whitespace-nowrap">
-                      {updatingJobId === item.id ? (
-                        <div className="flex flex-col gap-1">
-                          <select
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="border rounded px-2 py-1 text-xs"
+          {loading ? (
+            <div>
+              <LoadingSpinner />
+            </div>
+          ) : (
+            <table className="min-w-[1100px] w-full text-sm">
+              <thead className="bg-gray-100 sticky top-0 z-10">
+                <tr className="border-b">
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Action
+                  </th>
+                  <th className="text-right py-2 px-3 whitespace-nowrap">
+                    Job_No
+                  </th>
+                  <th className="text-left py-2 px-3 whitespace-nowrap">
+                    Material
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Item
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Project
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Level
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Unit
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Status
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Total_SQM
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Current_SQM
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Total_Delivered_SQM
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Date_Received
+                  </th>
+                  <th className="text-center py-2 px-3 whitespace-nowrap">
+                    Date_to_Production
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.jobs?.length > 0 ? (
+                  data.jobs.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="border-b hover:bg-blue-50 transition"
+                    >
+                      <td className="py-2 px-3">
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/jobs/${item.id}/edit`}
+                            className="text-orange-600 hover:text-orange-800 text-xs font-medium"
                           >
-                            <option value="">Select Status</option>
+                            Edit
+                          </Link>
 
-                            {statuses.map((s: Status) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </select>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="text-red-600 hover:text-red-800 text-xs font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
 
-                          {statuses.find(
-                            (s: Status) => s.id === parseInt(selectedStatus),
-                          )?.name === "PARTIALLY DELIVERED" && (
-                            <input
-                              type="number"
-                              placeholder="Delivered SQM"
-                              value={deliveredSqm}
-                              onChange={(e) => setDeliveredSqm(e.target.value)}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        {item.job_number}
+                      </td>
+
+                      <td className="py-4 px-3 whitespace-nowrap">
+                        {item.material_name}
+                      </td>
+
+                      <td className="text-center py-2 px-3 whitespace-nowrap">
+                        {item.item}
+                      </td>
+
+                      <td className="text-center py-2 px-3 whitespace-nowrap">
+                        {item.project_name}
+                      </td>
+
+                      <td className="text-center py-2 px-3 whitespace-nowrap">
+                        {item.level}
+                      </td>
+
+                      <td className="text-center py-2 px-3 whitespace-nowrap">
+                        {item.unit}
+                      </td>
+
+                      {/* STATUS COLUMN */}
+                      <td className="text-center py-2 px-3 whitespace-nowrap">
+                        {updatingJobId === item.id ? (
+                          <div className="flex flex-col gap-1">
+                            <select
+                              value={selectedStatus}
+                              onChange={(e) =>
+                                setSelectedStatus(e.target.value)
+                              }
                               className="border rounded px-2 py-1 text-xs"
-                            />
-                          )}
-
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleStatusUpdate(item.id)}
-                              className="bg-green-500 text-white text-xs px-2 py-1 rounded"
                             >
-                              ✓
-                            </button>
+                              <option value="">Select Status</option>
 
-                            <button
-                              onClick={() => {
-                                setUpdatingJobId(null);
-                                setSelectedStatus("");
-                                setDeliveredSqm("");
-                              }}
-                              className="bg-red-500 text-white text-xs px-2 py-1 rounded"
-                            >
-                              ✕
-                            </button>
+                              {statuses.map((s: Status) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
+                              ))}
+                            </select>
+
+                            {statuses.find(
+                              (s: Status) => s.id === parseInt(selectedStatus),
+                            )?.name === "PARTIALLY DELIVERED" && (
+                              <input
+                                type="number"
+                                placeholder="Delivered SQM"
+                                value={deliveredSqm}
+                                onChange={(e) =>
+                                  setDeliveredSqm(e.target.value)
+                                }
+                                className="border rounded px-2 py-1 text-xs"
+                              />
+                            )}
+
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleStatusUpdate(item.id)}
+                                className="bg-green-500 text-white text-xs px-2 py-1 rounded"
+                              >
+                                Update
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setUpdatingJobId(null);
+                                  setSelectedStatus("");
+                                  setDeliveredSqm("");
+                                }}
+                                className="bg-red-500 text-white text-xs px-2 py-1 rounded"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div
-                          onClick={() => setUpdatingJobId(item.id)}
-                          className="cursor-pointer"
-                          title="Click to update status"
-                        >
-                          <StatusBadge
-                            status={item.status_name}
-                            color={item.status_color}
-                          />
-                        </div>
-                      )}
-                    </td>
+                        ) : (
+                          <div
+                            onClick={() => setUpdatingJobId(item.id)}
+                            className="cursor-pointer"
+                            title="Click to update status"
+                          >
+                            <StatusBadge
+                              status={item.status_name}
+                              color={item.status_color}
+                            />
+                          </div>
+                        )}
+                      </td>
 
-                    <td className="text-center py-2 px-3 whitespace-nowrap font-semibold">
-                      {Number(item.original_sqm).toLocaleString()}
-                    </td>
+                      <td className="text-center py-2 px-3 whitespace-nowrap font-semibold">
+                        {Number(item.original_sqm).toLocaleString()}
+                      </td>
 
-                    <td className="text-center py-2 px-3 whitespace-nowrap text-red-600 font-semibold">
-                      {Number(item.total_sqm).toLocaleString()}
-                    </td>
+                      <td className="text-center py-2 px-3 whitespace-nowrap text-red-600 font-semibold">
+                        {Number(item.total_sqm).toLocaleString()}
+                      </td>
 
-                    <td className="text-center py-2 px-3 text-green-600 whitespace-nowrap font-semibold">
-                      {Number(item.total_delivered_sqm).toLocaleString()}
-                    </td>
+                      <td className="text-center py-2 px-3 text-green-600 whitespace-nowrap font-semibold">
+                        {Number(item.total_delivered_sqm).toLocaleString()}
+                      </td>
 
-                    <td className="text-center py-2 px-3 text-orange-600 whitespace-nowrap">
-                      {item.date_received
-                        ? new Date(item.date_received).toLocaleDateString(
-                            "en-GB",
-                          )
-                        : "-"}
-                    </td>
+                      <td className="text-center py-2 px-3 text-orange-600 whitespace-nowrap">
+                        {item.date_received
+                          ? new Date(item.date_received).toLocaleDateString(
+                              "en-GB",
+                            )
+                          : "-"}
+                      </td>
 
-                    <td className="text-center py-2 px-3 text-orange-600 whitespace-nowrap">
-                      {item.date_to_production
-                        ? new Date(item.date_to_production).toLocaleDateString(
-                            "en-GB",
-                          )
-                        : "-"}
+                      <td className="text-center py-2 px-3 text-orange-600 whitespace-nowrap">
+                        {item.date_to_production
+                          ? new Date(
+                              item.date_to_production,
+                            ).toLocaleDateString("en-GB")
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={13}
+                      className="text-center py-6 text-lg font-semibold"
+                    >
+                      No Jobs Available!
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={13}
-                    className="text-center py-6 text-lg font-semibold"
-                  >
-                    No Jobs Available!
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <Pagination
