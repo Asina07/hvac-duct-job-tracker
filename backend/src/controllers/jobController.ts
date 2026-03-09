@@ -1,5 +1,8 @@
 import { Response, Request } from "express";
 import dbPool from "../config/db";
+import ExcelJS from "exceljs";
+import multer from "multer";
+import * as XLSX from "xlsx";
 
 export const getJobs = async (req: Request, res: Response) => {
   try {
@@ -377,5 +380,209 @@ export const deleteJob = async (req: Request, res: Response) => {
     const error = err as Error;
     console.error("Error deleting job:", error.message);
     res.status(500).json({ error: "Failed to delete job" });
+  }
+};
+
+export const exportJobs = async (req: Request, res: Response) => {
+  const user_id = req.user?.id;
+
+  try {
+    // Get all jobs for this user with joins
+    const result = await dbPool.query(
+      `
+      SELECT 
+          jobs.job_number,
+    jobs.date_received,
+    jobs.item,
+    materials.name AS material,
+    projects.name AS project,
+    jobs.level,
+    jobs.original_sqm,          
+    jobs.total_sqm AS remaining_sqm,
+    jobs.total_delivered_sqm,
+    jobs.unit,
+    statuses.name AS status,
+    jobs.date_to_production,
+    jobs.notes
+      FROM jobs
+      LEFT JOIN materials ON jobs.material_id = materials.id
+      LEFT JOIN projects ON jobs.project_id = projects.id
+      LEFT JOIN statuses ON jobs.status_id = statuses.id
+      WHERE jobs.user_id = $1
+      ORDER BY jobs.date_received DESC
+    `,
+      [user_id],
+    );
+
+    // Create workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Jobs");
+
+    // Define columns
+    worksheet.columns = [
+      { header: "Job Number", key: "job_number", width: 15 },
+      { header: "Date Received", key: "date_received", width: 15 },
+      { header: "Item", key: "item", width: 25 },
+      { header: "Material", key: "material", width: 20 },
+      { header: "Project", key: "project", width: 20 },
+      { header: "Level", key: "level", width: 15 },
+      { header: "Total SQM", key: "original_sqm", width: 12 },
+      { header: "Delivered SQM", key: "total_delivered_sqm", width: 15 },
+      { header: "Remaining SQM", key: "remaining_sqm", width: 15 },
+      { header: "Unit", key: "unit", width: 10 },
+      { header: "Status", key: "status", width: 20 },
+      { header: "Date to Production", key: "date_to_production", width: 18 },
+      { header: "Notes", key: "notes", width: 30 },
+    ];
+
+    // Style header row
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1E3A5F" },
+      };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    // Add rows
+    result.rows.forEach((job) => {
+      worksheet.addRow({
+        ...job,
+        date_received: job.date_received
+          ? new Date(job.date_received).toLocaleDateString("en-GB")
+          : "",
+        date_to_production: job.date_to_production
+          ? new Date(job.date_to_production).toLocaleDateString("en-GB")
+          : "",
+      });
+    });
+
+    // Set response headers for file download
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=jobs_export.xlsx",
+    );
+
+    // Send file
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    const error = err as Error;
+    console.error("Export error:", error.message);
+    res.status(500).json({ error: "Failed to export jobs" });
+  }
+};
+
+// Multer config - store in memory not disk
+export const upload = multer({ storage: multer.memoryStorage() });
+
+export const importJobs = async (req: Request, res: Response) => {
+  const user_id = req.user?.id;
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Read Excel file from buffer
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0] as string;
+    const worksheet = workbook.Sheets[sheetName];
+
+    // Convert to JSON
+    const rows: any[] = XLSX.utils.sheet_to_json(worksheet as any);
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: "Excel file is empty" });
+    }
+
+    // Get materials, projects, statuses for name lookup
+    const [materials, projects, statuses] = await Promise.all([
+      dbPool.query("SELECT id, name FROM materials"),
+      dbPool.query("SELECT id, name FROM projects WHERE user_id = $1", [
+        user_id,
+      ]),
+      dbPool.query("SELECT id, name FROM statuses"),
+    ]);
+
+    // Create lookup maps - name → id
+    const materialMap: any = {};
+    materials.rows.forEach((m) => (materialMap[m.name.toUpperCase()] = m.id));
+
+    const projectMap: any = {};
+    projects.rows.forEach((p) => (projectMap[p.name.toUpperCase()] = p.id));
+
+    const statusMap: any = {};
+    statuses.rows.forEach((s) => (statusMap[s.name.toUpperCase()] = s.id));
+
+    // Track results
+    const results = {
+      success: 0,
+      skipped: 0, // ← add this
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    // Insert each row
+    for (const row of rows) {
+      try {
+        const material_id =
+          materialMap[row["Material"]?.toString().toUpperCase()];
+        const project_id = projectMap[row["Project"]?.toString().toUpperCase()];
+        const status_id = statusMap[row["Status"]?.toString().toUpperCase()];
+        const total_sqm = parseFloat(row["Total SQM"]) || 0;
+
+        const insertResult = await dbPool.query(
+          `
+  INSERT INTO jobs (
+    job_number, date_received, item, material_id, project_id,
+    level, total_sqm, original_sqm, unit, status_id,
+    date_to_production, notes, user_id
+  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12)
+  ON CONFLICT (job_number, user_id) DO NOTHING
+`,
+          [
+            row["Job Number"]?.toString() || "",
+            row["Date Received"] || new Date(),
+            row["Item"]?.toString() || "",
+            material_id || null,
+            project_id || null,
+            row["Level"]?.toString() || "",
+            total_sqm,
+            row["Unit"]?.toString() || "SQM",
+            status_id || null,
+            row["Date to Production"] || null,
+            row["Notes"]?.toString() || "",
+            user_id,
+          ],
+        );
+
+        if (insertResult.rowCount === 0) {
+          results.skipped++;
+        } else {
+          results.success++;
+        }
+      } catch (err) {
+        results.failed++;
+        results.errors.push(
+          `Row ${results.success + results.failed}: ${row["Job Number"]}`,
+        );
+      }
+    }
+
+    res.json({
+      message: `Import complete! ${results.success} imported, ${results.skipped} skipped (duplicates), ${results.failed} failed`,
+      results,
+    });
+  } catch (err) {
+    const error = err as Error;
+    console.error("Import error:", error.message);
+    res.status(500).json({ error: "Failed to import jobs" });
   }
 };

@@ -14,6 +14,8 @@ import {
   getStatuses,
   updateJobStatus,
 } from "@/app/lib/api";
+import { useAuthStore } from "@/app/store/authStore";
+import { Download, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
@@ -163,6 +165,60 @@ const JobPage = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const token = useAuthStore.getState().token;
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/jobs/export`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      // Convert response to blob (binary file)
+      const blob = await response.blob();
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "jobs_export.xlsx";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to export jobs");
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const token = useAuthStore.getState().token;
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/jobs/import`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        },
+      );
+      const result = await response.json();
+      alert(result.message);
+      fetchJobData(); // refresh jobs list
+    } catch (err) {
+      alert("Failed to import jobs");
+    }
+
+    // Reset file input
+    e.target.value = "";
+  };
   return (
     <LayoutComp mainHeader={"All Jobs"}>
       <div className="bg-white rounded-lg shadow-sm p-6">
@@ -219,7 +275,7 @@ const JobPage = () => {
           </div>
           <div className="flex justify-between gap-3">
             {/* Search and Reset buttons */}
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-3 flex-col md:flex-row ">
               <button
                 onClick={() => {
                   setPage(1);
@@ -241,7 +297,30 @@ const JobPage = () => {
                 Reset
               </button>
             </div>
-            <div>
+
+            <div className="flex md:gap-2 items-center justify-center flex flex-col md:flex-row ">
+              <button
+                onClick={handleExport}
+                className="flex items-center mt-3 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+              >
+                <Download size={16} className="mr-2" /> Export Excel
+              </button>
+              {/* Hidden file input */}
+              <div className="md:mt-3 mt-2">
+              <input
+                type="file"
+                id="importFile"
+                accept=".xlsx"
+                onChange={handleImport}
+                className="hidden"
+              />
+              {/* Import button triggers file input */}
+              <label
+                htmlFor="importFile"
+                className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 cursor-pointer"
+              >
+                <Upload size={16} className="mr-2" /> Import Excel
+              </label></div>
               <button
                 onClick={() => router.push("/jobs/new")}
                 className="px-4 mt-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
