@@ -23,7 +23,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
       `
   SELECT 
     COUNT(*) AS total_jobs,
-    SUM(total_sqm) AS total_sqm,
+    SUM(original_sqm) AS total_sqm,
     SUM(total_delivered_sqm) AS total_delivered_sqm
   FROM jobs
   WHERE user_id = $1
@@ -36,8 +36,8 @@ export const getDashboardData = async (req: Request, res: Response) => {
     // GROUP BY materials.name - separates totals per material
     // Example result: GI DUCT FIRERATED = 45 jobs, 28530 SQM
     const byMaterialResult = await dbPool.query(
-      "SELECT materials.name AS material, COUNT(*) AS total_jobs, SUM(jobs.total_sqm) AS total_sqm FROM jobs LEFT JOIN materials ON jobs.material_id = materials.id WHERE jobs.user_id = $1 GROUP BY materials.name",
-      [user_id],
+     "SELECT materials.name AS material, COUNT(*) AS total_jobs, SUM(jobs.original_sqm) AS total_sqm FROM jobs LEFT JOIN materials ON jobs.material_id = materials.id WHERE jobs.user_id = $1 GROUP BY materials.name ORDER BY materials.name",
+      [user_id]
     );
 
     // Get job count and total SQM grouped by each status
@@ -45,7 +45,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
     // GROUP BY both name and color because we're selecting color too
     // Example result: IN PRODUCTION(orange) = 10 jobs, 3267 SQM
     const byStatusResult = await dbPool.query(
-      "SELECT statuses.name AS status, statuses.color AS color, COUNT(*) AS total_jobs, SUM(jobs.total_sqm) AS total_sqm FROM jobs LEFT JOIN statuses ON jobs.status_id = statuses.id WHERE jobs.user_id = $1 GROUP BY statuses.name, statuses.color;",
+      "SELECT statuses.name AS status, statuses.color AS color, COUNT(*) AS total_jobs, SUM(jobs.original_sqm) AS total_sqm FROM jobs LEFT JOIN statuses ON jobs.status_id = statuses.id WHERE jobs.user_id = $1 GROUP BY statuses.name, statuses.color;",
       [user_id],
     );
 
@@ -56,14 +56,16 @@ export const getDashboardData = async (req: Request, res: Response) => {
     // Helps husband see at a glance how much of each material is still pending
     const deliverySummaryResult = await dbPool.query(`
   SELECT 
-    materials.name AS material,
-    SUM(jobs.total_sqm) AS total_sqm,
-    SUM(jobs.total_delivered_sqm) AS delivered_sqm,
-    SUM(jobs.total_sqm - COALESCE(jobs.total_delivered_sqm, 0)) AS pending_sqm
-  FROM jobs
-  LEFT JOIN materials ON jobs.material_id = materials.id
-  GROUP BY materials.name
-`);
+  materials.name AS material,
+  SUM(jobs.original_sqm) AS total_sqm,
+  SUM(jobs.total_delivered_sqm) AS delivered_sqm,
+  SUM(jobs.original_sqm) - COALESCE(SUM(jobs.total_delivered_sqm), 0) AS pending_sqm
+FROM jobs
+LEFT JOIN materials ON jobs.material_id = materials.id
+WHERE jobs.user_id = $1
+GROUP BY materials.name
+ORDER BY materials.name
+`,[user_id]);
 
     // Get all jobs where status is 'TAG LIST SEND FOR APPROVAL'
     // These are jobs waiting for customer approval before production starts
@@ -83,9 +85,9 @@ export const getDashboardData = async (req: Request, res: Response) => {
   LEFT JOIN projects ON jobs.project_id = projects.id
   LEFT JOIN materials ON jobs.material_id = materials.id
   LEFT JOIN statuses ON jobs.status_id = statuses.id
-  WHERE statuses.name = 'TAG LIST SEND FOR APPROVAL'
+  WHERE statuses.name = 'TAG LIST SEND FOR APPROVAL' AND jobs.user_id=$1
   ORDER BY jobs.date_received ASC
-`);
+`,[user_id]);
 
 //to get detailes of each category by material
 const materialStatusResult = await dbPool.query(`
@@ -94,7 +96,7 @@ const materialStatusResult = await dbPool.query(`
     statuses.name AS status,
     statuses.color AS color,
     COUNT(*) AS total_jobs,
-    SUM(jobs.total_sqm) AS total_sqm
+    SUM(jobs.original_sqm) AS total_sqm
   FROM jobs
   LEFT JOIN materials ON jobs.material_id = materials.id
   LEFT JOIN statuses ON jobs.status_id = statuses.id

@@ -39,6 +39,7 @@ const JobPage = () => {
   const [searchMaterial, setSearchMterial] = useState("");
   const [searchDates, setSearchDates] = useState("");
   const [page, setPage] = useState(1);
+  const [importing, setImporting] = useState(false);
 
   //update total sqm and original sqm
   const [updatingJobId, setUpdatingJobId] = useState<number | null>(null);
@@ -194,6 +195,8 @@ const JobPage = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImporting(true); // ← start loading
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -203,21 +206,34 @@ const JobPage = () => {
         `${process.env.NEXT_PUBLIC_API_URL}/api/jobs/import`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         },
       );
       const result = await response.json();
       alert(result.message);
-      fetchJobData(); // refresh jobs list
+      fetchJobData();
     } catch (err) {
       alert("Failed to import jobs");
+    } finally {
+      setImporting(false); // ← stop loading
+      e.target.value = "";
     }
+  };
 
-    // Reset file input
-    e.target.value = "";
+  const handleDownloadTemplate = async () => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/jobs/template`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "import_template.xlsx";
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
   return (
     <LayoutComp mainHeader={"All Jobs"}>
@@ -229,8 +245,16 @@ const JobPage = () => {
 
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-800">List All Jobs</h1>
-          <div className="text-sm text-blue-600 hover:text-blue-800">
-            <BackButton />
+          <div className="flex justify-between items-center mb-6 gap-2">
+            <div className="text-sm text-blue-600 hover:text-blue-800">
+              <BackButton />
+            </div>
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700"
+            >
+              <Download size={16} className="mr-2" /> Download Template
+            </button>
           </div>
         </div>
 
@@ -307,20 +331,54 @@ const JobPage = () => {
               </button>
               {/* Hidden file input */}
               <div className="md:mt-3 mt-2">
-              <input
-                type="file"
-                id="importFile"
-                accept=".xlsx"
-                onChange={handleImport}
-                className="hidden"
-              />
-              {/* Import button triggers file input */}
-              <label
-                htmlFor="importFile"
-                className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 cursor-pointer"
-              >
-                <Upload size={16} className="mr-2" /> Import Excel
-              </label></div>
+                <input
+                  type="file"
+                  id="importFile"
+                  accept=".xlsx"
+                  onChange={handleImport}
+                  className="hidden"
+                  disabled={importing}
+                />
+
+                <label
+                  htmlFor="importFile"
+                  className={`flex items-center px-4 py-2 text-white text-sm rounded-lg cursor-pointer
+    ${
+      importing
+        ? "bg-blue-400 cursor-not-allowed"
+        : "bg-blue-600 hover:bg-blue-700"
+    }`}
+                >
+                  {importing ? (
+                    <>
+                      <svg
+                        className="animate-spin h-4 w-4 mr-2"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8z"
+                        />
+                      </svg>
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} className="mr-2" /> Import Excel
+                    </>
+                  )}
+                </label>
+              </div>
               <button
                 onClick={() => router.push("/jobs/new")}
                 className="px-4 mt-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"

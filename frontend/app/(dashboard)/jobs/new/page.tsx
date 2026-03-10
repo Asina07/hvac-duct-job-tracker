@@ -78,7 +78,6 @@ const NewJobPage = () => {
     loadOptions();
   }, []);
 
-
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -93,7 +92,6 @@ const NewJobPage = () => {
       setFormData({ ...formData, [name]: value });
     }
   };
-  
 
   const router = useRouter();
 
@@ -402,7 +400,7 @@ const NewJobPage = () => {
                 type="submit"
                 className="flex items-center px-5 py-2.5 mt-4 sm:mt-6 text-sm font-medium text-center text-white bg-blue-500 rounded-lg focus:ring-4 focus:ring-primary-200 dark:focus:ring-primary-900 hover:bg-primary-800"
               >
-                Add product
+                {loading ? "Creating..." : "Create Job"}
               </button>
               <button
                 onClick={() => router.push("/jobs")}
