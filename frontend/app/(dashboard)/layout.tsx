@@ -10,6 +10,7 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
+      
       {/* <LayoutComp mainHeader={"Dashboard"}> */}
         {children}
       {/* </LayoutComp> */}

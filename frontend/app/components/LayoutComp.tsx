@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 export default function LayoutComp({
   children,
   mainHeader,
@@ -12,9 +14,9 @@ export default function LayoutComp({
       
       {/* Fixed Header */}
       <div className="shrink-0 bg-white shadow-md">
-        <h1 className="text-2xl text-[#1a1f2e] p-4 font-bold text-gray-800 text-right bg-[#dee3f2]">
+      <Link href={'/'}> <h1 className="text-2xl text-[#1a1f2e] p-4 font-bold text-gray-800 text-right bg-[#dee3f2]">
           {mainHeader}
-        </h1>
+        </h1></Link> 
       </div>
 
       {/* Scrollable Content */}
