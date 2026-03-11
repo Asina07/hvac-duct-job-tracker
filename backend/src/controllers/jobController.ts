@@ -734,7 +734,7 @@ export const importJobs = async (req: Request, res: Response) => {
   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
   `,
           [
-            row["Job Number"]?.toString() || "",
+            String(row["Job Number"] ?? "").trim() || "",
             parseDate(row["Date Received"]) || null, // ← null if empty
             row["Item"]?.toString() || "",
             material_id || null,
