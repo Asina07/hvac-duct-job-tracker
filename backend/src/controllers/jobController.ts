@@ -735,7 +735,9 @@ export const importJobs = async (req: Request, res: Response) => {
   `,
           [
             String(row["Job Number"] ?? "").trim() || "",
-            parseDate(row["Date Received"]) || null, // ← null if empty
+            // parseDate(row["Date Received"]) || null, // ← null if empty
+            parseDate(row["Date Received"]) ||
+              new Date().toISOString().split("T")[0], // ← today if empty
             row["Item"]?.toString() || "",
             material_id || null,
             project_id || null,
@@ -751,7 +753,7 @@ export const importJobs = async (req: Request, res: Response) => {
           ],
         );
 
-        results.success++; 
+        results.success++;
 
         // if (insertResult.rowCount === 0) {
         //   results.skipped++;

@@ -396,8 +396,11 @@ const JobPage = () => {
             {statuses.map((s: Status) => {
               const count =
                 statusCounts.find((sc: any) => sc.status === s.name)
-                  ?.total_jobs || 0;
+                  ?.total_sqm || 0;
 
+              const countStatus =
+                statusCounts.find((sc: any) => sc.status === s.name)
+                  ?.total_jobs || 0;
               return (
                 <button
                   key={s.id}
@@ -419,10 +422,21 @@ const JobPage = () => {
           ${
             searchstatus === s.id.toString()
               ? "bg-white text-gray-800"
-              : "bg-gray-100 text-gray-700"
+              : "bg-green-100 text-gray-700"
           }`}
                   >
-                    {count}
+                    {countStatus}
+                  </span>
+
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-xs font-bold
+  ${
+    searchstatus === s.id.toString()
+      ? "bg-white text-gray-800"
+      : "bg-blue-100 text-gray-700"
+  }`}
+                  >
+                    {Number(count).toLocaleString()} SQM
                   </span>
                 </button>
               );
