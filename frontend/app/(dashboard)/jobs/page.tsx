@@ -9,6 +9,7 @@ import JobTable from "@/app/components/tables/JobTable";
 import { JobData_Type } from "@/app/dataTypes/jobData.types";
 import {
   deleteJob,
+  getDashboard,
   getJobs,
   getMaterials,
   getStatuses,
@@ -40,6 +41,7 @@ const JobPage = () => {
   const [searchDates, setSearchDates] = useState("");
   const [page, setPage] = useState(1);
   const [importing, setImporting] = useState(false);
+  const [statusCounts, setStatusCounts] = useState<any[]>([]);
 
   //update total sqm and original sqm
   const [updatingJobId, setUpdatingJobId] = useState<number | null>(null);
@@ -136,12 +138,14 @@ const JobPage = () => {
   useEffect(() => {
     const loadFilters = async () => {
       try {
-        const [statusData, materialData] = await Promise.all([
+        const [statusData, materialData, dashboardData] = await Promise.all([
           getStatuses(),
           getMaterials(),
+          getDashboard(), // ← add
         ]);
         setStatuses(statusData);
         setMaterials(materialData);
+        setStatusCounts(dashboardData.by_status); // ← add
       } catch (err) {
         console.error("Failed to load filters");
       }
@@ -386,6 +390,57 @@ const JobPage = () => {
                 Create New Job
               </button>
             </div>
+          </div>
+          {/* Status count filter buttons */}
+          <div className="flex flex-wrap gap-2 my-4">
+            {statuses.map((s: Status) => {
+              const count =
+                statusCounts.find((sc: any) => sc.status === s.name)
+                  ?.total_jobs || 0;
+
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setSearchStatus(s.id.toString());
+                    setPage(1);
+                    setTimeout(() => fetchJobData(), 100);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+          ${
+            searchstatus === s.id.toString()
+              ? "bg-gray-800 text-white border-gray-800"
+              : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+          }`}
+                >
+                  {s.name}
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-xs font-bold
+          ${
+            searchstatus === s.id.toString()
+              ? "bg-white text-gray-800"
+              : "bg-gray-100 text-gray-700"
+          }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Clear filter button */}
+            {searchstatus && (
+              <button
+                onClick={() => {
+                  setSearchStatus("");
+                  setPage(1);
+                  setTimeout(() => fetchJobData(), 100);
+                }}
+                className="px-3 py-1.5 rounded-full text-xs font-medium bg-red-100 text-red-600 border border-red-200 hover:bg-red-200"
+              >
+                Clear ✕
+              </button>
+            )}
           </div>
         </div>
         {/* <JobTable data={data} /> */}
