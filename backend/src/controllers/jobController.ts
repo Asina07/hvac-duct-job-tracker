@@ -196,7 +196,7 @@ export const createJob = async (req: Request, res: Response) => {
     final_total_sqm = 0;
     final_delivered_sqm = total_sqm;
   }
-  if (!date_received || !status_id || !job_number) {
+  if (!status_id || !job_number) {
     return res.status(400).json({ error: "Missing required fields" });
   }
   try {
@@ -727,15 +727,15 @@ export const importJobs = async (req: Request, res: Response) => {
 
         const insertResult = await dbPool.query(
           `
-          INSERT INTO jobs (
-            job_number, date_received, item, material_id, project_id,
-            level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
-            date_to_production, notes, user_id
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-          `,
+  INSERT INTO jobs (
+    job_number, date_received, item, material_id, project_id,
+    level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
+    date_to_production, notes, user_id
+  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+  `,
           [
             row["Job Number"]?.toString() || "",
-            parseDate(row["Date Received"]),
+            parseDate(row["Date Received"]) || null, // ← null if empty
             row["Item"]?.toString() || "",
             material_id || null,
             project_id || null,
@@ -745,11 +745,13 @@ export const importJobs = async (req: Request, res: Response) => {
             final_delivered_sqm,
             row["Unit"]?.toString() || "SQM",
             status_id || null,
-            parseDate(row["Date to Production"]),
+            parseDate(row["Date to Production"]) || null, // ← null if empty
             row["Notes"]?.toString() || "",
             user_id,
           ],
         );
+
+        results.success++; 
 
         // if (insertResult.rowCount === 0) {
         //   results.skipped++;
