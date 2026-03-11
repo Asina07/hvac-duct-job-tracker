@@ -682,7 +682,7 @@ export const importJobs = async (req: Request, res: Response) => {
 
     const results = {
       success: 0,
-      skipped: 0,
+      // skipped: 0,
       failed: 0,
       errors: [] as string[],
     };
@@ -732,7 +732,6 @@ export const importJobs = async (req: Request, res: Response) => {
             level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
             date_to_production, notes, user_id
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-          ON CONFLICT (job_number, user_id) DO NOTHING
           `,
           [
             row["Job Number"]?.toString() || "",
@@ -752,11 +751,11 @@ export const importJobs = async (req: Request, res: Response) => {
           ],
         );
 
-        if (insertResult.rowCount === 0) {
-          results.skipped++;
-        } else {
-          results.success++;
-        }
+        // if (insertResult.rowCount === 0) {
+        //   results.skipped++;
+        // } else {
+        //   results.success++;
+        // }
       } catch (err) {
         const error = err as Error;
         console.error(
@@ -773,7 +772,7 @@ export const importJobs = async (req: Request, res: Response) => {
     }
 
     res.json({
-      message: `Import complete! ${results.success} imported, ${results.skipped} skipped (duplicates), ${results.failed} failed`,
+      message: `Import complete! ${results.success} imported, ${results.failed} failed`,
       results,
     });
   } catch (err) {
