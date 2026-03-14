@@ -508,134 +508,6 @@ export const exportJobs = async (req: Request, res: Response) => {
 // Multer config - store in memory not disk
 export const upload = multer({ storage: multer.memoryStorage() });
 
-// export const importJobs = async (req: Request, res: Response) => {
-//   const user_id = req.user?.id;
-
-//   try {
-//     if (!req.file) {
-//       return res.status(400).json({ error: "No file uploaded" });
-//     }
-
-//     // Read Excel file from buffer
-//     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-//     const sheetName = workbook.SheetNames[0] as string;
-//     const worksheet = workbook.Sheets[sheetName];
-
-//     // Convert to JSON
-//     const rows: any[] = XLSX.utils.sheet_to_json(worksheet as any);
-
-//     if (rows.length === 0) {
-//       return res.status(400).json({ error: "Excel file is empty" });
-//     }
-
-//     // Get materials, projects, statuses for name lookup
-//     const [materials, projects, statuses] = await Promise.all([
-//       dbPool.query("SELECT id, name FROM materials"),
-//       dbPool.query("SELECT id, name FROM projects WHERE user_id = $1", [
-//         user_id,
-//       ]),
-//       dbPool.query("SELECT id, name FROM statuses"),
-//     ]);
-
-//     const parseDate = (dateStr: string | undefined): string | null => {
-//       if (!dateStr) return null;
-
-//       // If format is DD/MM/YYYY convert to YYYY-MM-DD
-//       if (typeof dateStr === "string" && dateStr.includes("/")) {
-//         const [day, month, year] = dateStr.split("/");
-//         return `${year}-${month}-${day}`;
-//       }
-
-//       return dateStr;
-//     };
-//     // Create lookup maps - name → id
-//     const materialMap: any = {};
-//     materials.rows.forEach((m) => (materialMap[m.name.toUpperCase()] = m.id));
-
-//     const projectMap: any = {};
-//     projects.rows.forEach((p) => (projectMap[p.name.toUpperCase()] = p.id));
-
-//     const statusMap: any = {};
-//     statuses.rows.forEach((s) => (statusMap[s.name.toUpperCase()] = s.id));
-
-//     // Track results
-//     const results = {
-//       success: 0,
-//       skipped: 0, // ← add this
-//       failed: 0,
-//       errors: [] as string[],
-//     };
-
-//     // Insert each row
-//     for (const row of rows) {
-//       console.log("Row data:", row);
-//       try {
-//         const material_id =
-//           materialMap[row["Material"]?.toString().toUpperCase()];
-//         const project_id = projectMap[row["Project"]?.toString().toUpperCase()];
-//         const status_id = statusMap[row["Status"]?.toString().toUpperCase()];
-//         const total_sqm = parseFloat(row["Total SQM"]) || 0;
-//         const imported_delivered_sqm = parseFloat(row["Delivered SQM"]) || 0;
-//         const statusName = row["Status"]?.toString().toUpperCase();
-//         const final_total_sqm =
-//           statusName === "DELIVERED" ? 0 : total_sqm - imported_delivered_sqm;
-//         const final_delivered_sqm =
-//           statusName === "DELIVERED" ? total_sqm : imported_delivered_sqm;
-
-//         const insertResult = await dbPool.query(
-//           `
-//   INSERT INTO jobs (
-//     job_number, date_received, item, material_id, project_id,
-//     level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
-//     date_to_production, notes, user_id
-//   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-//   ON CONFLICT (job_number, user_id) DO NOTHING
-// `,
-//           [
-//             row["Job Number"]?.toString() || "", // $1
-//             parseDate(row["Date Received"]), // $2
-//             row["Item"]?.toString() || "", // $3
-//             material_id || null, // $4
-//             project_id || null, // $5
-//             row["Level"]?.toString() || "", // $6
-//             final_total_sqm, // $7 total_sqm
-//             total_sqm, // $8 original_sqm always original
-//             final_delivered_sqm, // $9 total_delivered_sqm
-//             row["Unit"]?.toString() || "SQM", // $10
-//             status_id || null, // $11
-//             parseDate(row["Date to Production"]), // $12
-//             row["Notes"]?.toString() || "", // $13
-//             user_id, // $14
-//           ],
-//         );
-
-//         if (insertResult.rowCount === 0) {
-//           results.skipped++;
-//         } else {
-//           results.success++;
-//         }
-//       } catch (err) {
-//         const error = err as Error;
-//         console.log("Date received raw:", row["Date Received"]);
-//         console.log("Date parsed:", parseDate(row["Date Received"]));
-//         results.failed++;
-//         results.errors.push(
-//           `Row ${results.success + results.failed}: ${row["Job Number"]}`,
-//         );
-//       }
-//     }
-
-//     res.json({
-//       message: `Import complete! ${results.success} imported, ${results.skipped} skipped (duplicates), ${results.failed} failed`,
-//       results,
-//     });
-//   } catch (err) {
-//     const error = err as Error;
-//     console.error("Import error:", error.message);
-//     res.status(500).json({ error: "Failed to import jobs" });
-//   }
-// };
-
 export const importJobs = async (req: Request, res: Response) => {
   const user_id = req.user?.id;
 
@@ -664,9 +536,7 @@ export const importJobs = async (req: Request, res: Response) => {
 
     const [materials, projects, statuses] = await Promise.all([
       dbPool.query("SELECT id, name FROM materials"),
-      dbPool.query("SELECT id, name FROM projects WHERE user_id = $1", [
-        user_id,
-      ]),
+      dbPool.query("SELECT id, name FROM projects WHERE user_id = $1", [user_id]),
       dbPool.query("SELECT id, name FROM statuses"),
     ]);
 
@@ -679,21 +549,18 @@ export const importJobs = async (req: Request, res: Response) => {
     const statusMap: any = {};
     statuses.rows.forEach((s) => (statusMap[s.name.toUpperCase()] = s.id));
 
-    const results = {
-      success: 0,
-      failed: 0,
-      errors: [] as string[],
-    };
+    // Pre-process all rows first
+    const validRows: any[] = [];
+    let failed = 0;
 
     for (const row of rows) {
       try {
         // Auto create material if not exists
-        let material_id =
-          materialMap[row["Material"]?.toString().toUpperCase()];
+        let material_id = materialMap[row["Material"]?.toString().toUpperCase()];
         if (!material_id && row["Material"]) {
           const newMaterial = await dbPool.query(
             "INSERT INTO materials (name) VALUES ($1) RETURNING id",
-            [row["Material"]],
+            [row["Material"]]
           );
           material_id = newMaterial.rows[0].id;
           materialMap[row["Material"].toString().toUpperCase()] = material_id;
@@ -704,87 +571,373 @@ export const importJobs = async (req: Request, res: Response) => {
         if (!project_id && row["Project"]) {
           const newProject = await dbPool.query(
             "INSERT INTO projects (name, user_id) VALUES ($1, $2) RETURNING id",
-            [row["Project"], user_id],
+            [row["Project"], user_id]
           );
           project_id = newProject.rows[0].id;
           projectMap[row["Project"].toString().toUpperCase()] = project_id;
         }
 
-        // Status must match existing — no auto create
-        const status_id =
-          statusMap[row["Status"]?.toString().toUpperCase()] || null;
-
+        const status_id = statusMap[row["Status"]?.toString().toUpperCase()] || null;
         const total_sqm = parseFloat(row["Total SQM"]) || 0;
         const imported_delivered_sqm = parseFloat(row["Delivered SQM"]) || 0;
         const statusName = row["Status"]?.toString().toUpperCase();
 
-        // use imported_delivered_sqm if total_sqm is 0 (old delivered jobs)
         const actual_total =
           total_sqm === 0 && imported_delivered_sqm > 0
             ? imported_delivered_sqm
             : total_sqm;
 
         const final_total_sqm =
-          statusName === "DELIVERED"
-            ? 0
-            : actual_total - imported_delivered_sqm;
+          statusName === "DELIVERED" ? 0 : actual_total - imported_delivered_sqm;
         const final_delivered_sqm =
           statusName === "DELIVERED" ? actual_total : imported_delivered_sqm;
         const original_sqm = actual_total;
 
-        await dbPool.query(
-          `
-          INSERT INTO jobs (
-            job_number, date_received, item, material_id, project_id,
-            level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
-            date_to_production, notes, user_id
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-          `,
-          [
-            String(row["Job Number"] ?? "").trim() || "",
-            parseDate(row["Date Received"]) ||
-              new Date().toISOString().split("T")[0],
-            row["Item"]?.toString() || "",
-            material_id || null,
-            project_id || null,
-            row["Level"]?.toString() || "",
-            final_total_sqm,
-            original_sqm,
-            final_delivered_sqm,
-            row["Unit"]?.toString() || "SQM",
-            status_id || null,
-            parseDate(row["Date to Production"]) || null,
-            row["Notes"]?.toString() || "",
-            user_id,
-          ],
-        );
-
-        results.success++;
+        validRows.push([
+          String(row["Job Number"] ?? "").trim() || "",
+          parseDate(row["Date Received"]) || new Date().toISOString().split("T")[0],
+          row["Item"]?.toString() || "",
+          material_id || null,
+          project_id || null,
+          row["Level"]?.toString() || "",
+          final_total_sqm,
+          original_sqm,
+          final_delivered_sqm,
+          row["Unit"]?.toString() || "SQM",
+          status_id || null,
+          parseDate(row["Date to Production"]) || null,
+          row["Notes"]?.toString() || "",
+          user_id,
+        ]);
       } catch (err) {
-        const error = err as Error;
-        console.error(
-          "Failed row:",
-          row["Job Number"],
-          "Error:",
-          error.message,
-        );
-        results.failed++;
-        results.errors.push(
-          `Row ${results.success + results.failed}: ${row["Job Number"]}`,
-        );
+        failed++;
       }
     }
 
+    // Bulk insert in chunks of 500
+    const chunkSize = 500;
+    for (let i = 0; i < validRows.length; i += chunkSize) {
+      const chunk = validRows.slice(i, i + chunkSize);
+      const placeholders = chunk.map((_, rowIndex) => {
+        const base = rowIndex * 14;
+        return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5},$${base+6},$${base+7},$${base+8},$${base+9},$${base+10},$${base+11},$${base+12},$${base+13},$${base+14})`;
+      }).join(",");
+
+      const flatValues = chunk.flat();
+
+      await dbPool.query(`
+        INSERT INTO jobs (
+          job_number, date_received, item, material_id, project_id,
+          level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
+          date_to_production, notes, user_id
+        ) VALUES ${placeholders}
+      `, flatValues);
+    }
+
     res.json({
-      message: `Import complete! ${results.success} imported, ${results.failed} failed`,
-      results,
+      message: `Import complete! ${validRows.length} imported, ${failed} failed`,
+      results: { success: validRows.length, failed },
     });
+
   } catch (err) {
     const error = err as Error;
     console.error("Import error:", error.message);
     res.status(500).json({ error: "Failed to import jobs" });
   }
 };
+
+
+// export const importJobs = async (req: Request, res: Response) => {
+//   const user_id = req.user?.id;
+
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({ error: "No file uploaded" });
+//     }
+
+//     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+//     const sheetName = workbook.SheetNames[0] as string;
+//     const worksheet = workbook.Sheets[sheetName];
+//     const rows: any[] = XLSX.utils.sheet_to_json(worksheet as any);
+
+//     if (rows.length === 0) {
+//       return res.status(400).json({ error: "Excel file is empty" });
+//     }
+
+//     const parseDate = (dateStr: string | undefined): string | null => {
+//       if (!dateStr) return null;
+//       if (typeof dateStr === "string" && dateStr.includes("/")) {
+//         const [day, month, year] = dateStr.split("/");
+//         return `${year}-${month}-${day}`;
+//       }
+//       return dateStr;
+//     };
+
+//     const [materials, projects, statuses] = await Promise.all([
+//       dbPool.query("SELECT id, name FROM materials"),
+//       dbPool.query("SELECT id, name FROM projects WHERE user_id = $1", [user_id]),
+//       dbPool.query("SELECT id, name FROM statuses"),
+//     ]);
+
+//     const materialMap: any = {};
+//     materials.rows.forEach((m) => (materialMap[m.name.toUpperCase()] = m.id));
+
+//     const projectMap: any = {};
+//     projects.rows.forEach((p) => (projectMap[p.name.toUpperCase()] = p.id));
+
+//     const statusMap: any = {};
+//     statuses.rows.forEach((s) => (statusMap[s.name.toUpperCase()] = s.id));
+
+//     // Pre-process all rows first
+//     const validRows: any[] = [];
+//     let failed = 0;
+
+//     for (const row of rows) {
+//       try {
+//         // Auto create material if not exists
+//         let material_id = materialMap[row["Material"]?.toString().toUpperCase()];
+//         if (!material_id && row["Material"]) {
+//           const newMaterial = await dbPool.query(
+//             "INSERT INTO materials (name) VALUES ($1) RETURNING id",
+//             [row["Material"]]
+//           );
+//           material_id = newMaterial.rows[0].id;
+//           materialMap[row["Material"].toString().toUpperCase()] = material_id;
+//         }
+
+//         // Auto create project if not exists
+//         let project_id = projectMap[row["Project"]?.toString().toUpperCase()];
+//         if (!project_id && row["Project"]) {
+//           const newProject = await dbPool.query(
+//             "INSERT INTO projects (name, user_id) VALUES ($1, $2) RETURNING id",
+//             [row["Project"], user_id]
+//           );
+//           project_id = newProject.rows[0].id;
+//           projectMap[row["Project"].toString().toUpperCase()] = project_id;
+//         }
+
+//         const status_id = statusMap[row["Status"]?.toString().toUpperCase()] || null;
+//         const total_sqm = parseFloat(row["Total SQM"]) || 0;
+//         const imported_delivered_sqm = parseFloat(row["Delivered SQM"]) || 0;
+//         const statusName = row["Status"]?.toString().toUpperCase();
+
+//         const actual_total =
+//           total_sqm === 0 && imported_delivered_sqm > 0
+//             ? imported_delivered_sqm
+//             : total_sqm;
+
+//         const final_total_sqm =
+//           statusName === "DELIVERED" ? 0 : actual_total - imported_delivered_sqm;
+//         const final_delivered_sqm =
+//           statusName === "DELIVERED" ? actual_total : imported_delivered_sqm;
+//         const original_sqm = actual_total;
+
+//         validRows.push([
+//           String(row["Job Number"] ?? "").trim() || "",
+//           parseDate(row["Date Received"]) || new Date().toISOString().split("T")[0],
+//           row["Item"]?.toString() || "",
+//           material_id || null,
+//           project_id || null,
+//           row["Level"]?.toString() || "",
+//           final_total_sqm,
+//           original_sqm,
+//           final_delivered_sqm,
+//           row["Unit"]?.toString() || "SQM",
+//           status_id || null,
+//           parseDate(row["Date to Production"]) || null,
+//           row["Notes"]?.toString() || "",
+//           user_id,
+//         ]);
+//       } catch (err) {
+//         failed++;
+//       }
+//     }
+
+//     // Bulk insert in chunks of 500
+//     const chunkSize = 500;
+//     for (let i = 0; i < validRows.length; i += chunkSize) {
+//       const chunk = validRows.slice(i, i + chunkSize);
+//       const placeholders = chunk.map((_, rowIndex) => {
+//         const base = rowIndex * 14;
+//         return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5},$${base+6},$${base+7},$${base+8},$${base+9},$${base+10},$${base+11},$${base+12},$${base+13},$${base+14})`;
+//       }).join(",");
+
+//       const flatValues = chunk.flat();
+
+//       await dbPool.query(`
+//         INSERT INTO jobs (
+//           job_number, date_received, item, material_id, project_id,
+//           level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
+//           date_to_production, notes, user_id
+//         ) VALUES ${placeholders}
+//       `, flatValues);
+//     }
+
+//     res.json({
+//       message: `Import complete! ${validRows.length} imported, ${failed} failed`,
+//       results: { success: validRows.length, failed },
+//     });
+
+//   } catch (err) {
+//     const error = err as Error;
+//     console.error("Import error:", error.message);
+//     res.status(500).json({ error: "Failed to import jobs" });
+//   }
+// };
+
+
+
+
+
+// export const importJobs = async (req: Request, res: Response) => {
+//   const user_id = req.user?.id;
+
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({ error: "No file uploaded" });
+//     }
+
+//     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+//     const sheetName = workbook.SheetNames[0] as string;
+//     const worksheet = workbook.Sheets[sheetName];
+//     const rows: any[] = XLSX.utils.sheet_to_json(worksheet as any);
+
+//     if (rows.length === 0) {
+//       return res.status(400).json({ error: "Excel file is empty" });
+//     }
+
+//     const parseDate = (dateStr: string | undefined): string | null => {
+//       if (!dateStr) return null;
+//       if (typeof dateStr === "string" && dateStr.includes("/")) {
+//         const [day, month, year] = dateStr.split("/");
+//         return `${year}-${month}-${day}`;
+//       }
+//       return dateStr;
+//     };
+
+//     const [materials, projects, statuses] = await Promise.all([
+//       dbPool.query("SELECT id, name FROM materials"),
+//       dbPool.query("SELECT id, name FROM projects WHERE user_id = $1", [
+//         user_id,
+//       ]),
+//       dbPool.query("SELECT id, name FROM statuses"),
+//     ]);
+
+//     const materialMap: any = {};
+//     materials.rows.forEach((m) => (materialMap[m.name.toUpperCase()] = m.id));
+
+//     const projectMap: any = {};
+//     projects.rows.forEach((p) => (projectMap[p.name.toUpperCase()] = p.id));
+
+//     const statusMap: any = {};
+//     statuses.rows.forEach((s) => (statusMap[s.name.toUpperCase()] = s.id));
+
+//     const results = {
+//       success: 0,
+//       failed: 0,
+//       errors: [] as string[],
+//     };
+
+//     for (const row of rows) {
+//       try {
+//         // Auto create material if not exists
+//         let material_id =
+//           materialMap[row["Material"]?.toString().toUpperCase()];
+//         if (!material_id && row["Material"]) {
+//           const newMaterial = await dbPool.query(
+//             "INSERT INTO materials (name) VALUES ($1) RETURNING id",
+//             [row["Material"]],
+//           );
+//           material_id = newMaterial.rows[0].id;
+//           materialMap[row["Material"].toString().toUpperCase()] = material_id;
+//         }
+
+//         // Auto create project if not exists
+//         let project_id = projectMap[row["Project"]?.toString().toUpperCase()];
+//         if (!project_id && row["Project"]) {
+//           const newProject = await dbPool.query(
+//             "INSERT INTO projects (name, user_id) VALUES ($1, $2) RETURNING id",
+//             [row["Project"], user_id],
+//           );
+//           project_id = newProject.rows[0].id;
+//           projectMap[row["Project"].toString().toUpperCase()] = project_id;
+//         }
+
+//         // Status must match existing — no auto create
+//         const status_id =
+//           statusMap[row["Status"]?.toString().toUpperCase()] || null;
+
+//         const total_sqm = parseFloat(row["Total SQM"]) || 0;
+//         const imported_delivered_sqm = parseFloat(row["Delivered SQM"]) || 0;
+//         const statusName = row["Status"]?.toString().toUpperCase();
+
+//         // use imported_delivered_sqm if total_sqm is 0 (old delivered jobs)
+//         const actual_total =
+//           total_sqm === 0 && imported_delivered_sqm > 0
+//             ? imported_delivered_sqm
+//             : total_sqm;
+
+//         const final_total_sqm =
+//           statusName === "DELIVERED"
+//             ? 0
+//             : actual_total - imported_delivered_sqm;
+//         const final_delivered_sqm =
+//           statusName === "DELIVERED" ? actual_total : imported_delivered_sqm;
+//         const original_sqm = actual_total;
+
+//         await dbPool.query(
+//           `
+//           INSERT INTO jobs (
+//             job_number, date_received, item, material_id, project_id,
+//             level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
+//             date_to_production, notes, user_id
+//           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+//           `,
+//           [
+//             String(row["Job Number"] ?? "").trim() || "",
+//             parseDate(row["Date Received"]) ||
+//               new Date().toISOString().split("T")[0],
+//             row["Item"]?.toString() || "",
+//             material_id || null,
+//             project_id || null,
+//             row["Level"]?.toString() || "",
+//             final_total_sqm,
+//             original_sqm,
+//             final_delivered_sqm,
+//             row["Unit"]?.toString() || "SQM",
+//             status_id || null,
+//             parseDate(row["Date to Production"]) || null,
+//             row["Notes"]?.toString() || "",
+//             user_id,
+//           ],
+//         );
+
+//         results.success++;
+//       } catch (err) {
+//         const error = err as Error;
+//         console.error(
+//           "Failed row:",
+//           row["Job Number"],
+//           "Error:",
+//           error.message,
+//         );
+//         results.failed++;
+//         results.errors.push(
+//           `Row ${results.success + results.failed}: ${row["Job Number"]}`,
+//         );
+//       }
+//     }
+
+//     res.json({
+//       message: `Import complete! ${results.success} imported, ${results.failed} failed`,
+//       results,
+//     });
+//   } catch (err) {
+//     const error = err as Error;
+//     console.error("Import error:", error.message);
+//     res.status(500).json({ error: "Failed to import jobs" });
+//   }
+// };
 
 export const downloadTemplate = async (req: Request, res: Response) => {
   try {
