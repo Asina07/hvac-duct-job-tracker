@@ -670,7 +670,6 @@ export const importJobs = async (req: Request, res: Response) => {
       dbPool.query("SELECT id, name FROM statuses"),
     ]);
 
-    // Create lookup maps
     const materialMap: any = {};
     materials.rows.forEach((m) => (materialMap[m.name.toUpperCase()] = m.id));
 
@@ -682,7 +681,6 @@ export const importJobs = async (req: Request, res: Response) => {
 
     const results = {
       success: 0,
-      // skipped: 0,
       failed: 0,
       errors: [] as string[],
     };
@@ -720,46 +718,48 @@ export const importJobs = async (req: Request, res: Response) => {
         const imported_delivered_sqm = parseFloat(row["Delivered SQM"]) || 0;
         const statusName = row["Status"]?.toString().toUpperCase();
 
-        const final_total_sqm =
-          statusName === "DELIVERED" ? 0 : total_sqm - imported_delivered_sqm;
-        const final_delivered_sqm =
-          statusName === "DELIVERED" ? total_sqm : imported_delivered_sqm;
+        // use imported_delivered_sqm if total_sqm is 0 (old delivered jobs)
+        const actual_total =
+          total_sqm === 0 && imported_delivered_sqm > 0
+            ? imported_delivered_sqm
+            : total_sqm;
 
-        const insertResult = await dbPool.query(
+        const final_total_sqm =
+          statusName === "DELIVERED"
+            ? 0
+            : actual_total - imported_delivered_sqm;
+        const final_delivered_sqm =
+          statusName === "DELIVERED" ? actual_total : imported_delivered_sqm;
+        const original_sqm = actual_total;
+
+        await dbPool.query(
           `
-  INSERT INTO jobs (
-    job_number, date_received, item, material_id, project_id,
-    level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
-    date_to_production, notes, user_id
-  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-  `,
+          INSERT INTO jobs (
+            job_number, date_received, item, material_id, project_id,
+            level, total_sqm, original_sqm, total_delivered_sqm, unit, status_id,
+            date_to_production, notes, user_id
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          `,
           [
             String(row["Job Number"] ?? "").trim() || "",
-            // parseDate(row["Date Received"]) || null, // ← null if empty
             parseDate(row["Date Received"]) ||
-              new Date().toISOString().split("T")[0], // ← today if empty
+              new Date().toISOString().split("T")[0],
             row["Item"]?.toString() || "",
             material_id || null,
             project_id || null,
             row["Level"]?.toString() || "",
             final_total_sqm,
-            total_sqm,
+            original_sqm,
             final_delivered_sqm,
             row["Unit"]?.toString() || "SQM",
             status_id || null,
-            parseDate(row["Date to Production"]) || null, // ← null if empty
+            parseDate(row["Date to Production"]) || null,
             row["Notes"]?.toString() || "",
             user_id,
           ],
         );
 
         results.success++;
-
-        // if (insertResult.rowCount === 0) {
-        //   results.skipped++;
-        // } else {
-        //   results.success++;
-        // }
       } catch (err) {
         const error = err as Error;
         console.error(
